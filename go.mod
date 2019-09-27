@@ -1,4 +1,4 @@
-module github.com/sanity/client-go
+module github.com/sanity-io/client-go
 
 go 1.13
 
