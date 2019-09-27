@@ -13,7 +13,7 @@ import (
   "log"
   "context"
 
-  sanity "github.com/sanity-io/golang-go"
+  sanity "github.com/sanity-io/client-go"
 )
 
 func main() {
@@ -41,6 +41,16 @@ func main() {
   log.Printf("Project: %+v", project)
 }
 ```
+
+## Installation
+
+```
+go get github.com/sanity-io/client-go
+```
+
+## Requirements
+
+Go 1.13 or later.
 
 # License
 
