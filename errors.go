@@ -5,12 +5,19 @@ import (
 	"net/http"
 )
 
+// RequestError is returned for API requests that fail with a non-successful HTTP status code.
 type RequestError struct {
-	Request  *http.Request
+	// Request is the attempted HTTP request that failed.
+	Request *http.Request
+
+	// Response is the HTTP response. Note that the body will no longer be valid.
 	Response *http.Response
-	Body     []byte
+
+	// Body is the body of the response.
+	Body []byte
 }
 
+// Error implements the error interface.
 func (e *RequestError) Error() string {
 	maxBody := 500
 	body := string(e.Body)

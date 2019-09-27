@@ -15,6 +15,7 @@ import (
 
 const DefaultDataset = "production"
 
+// Client implements a client for interacting with the Sanity API.
 type Client struct {
 	hc        *http.Client
 	useCDN    bool
@@ -45,8 +46,10 @@ func WithCallbacks(cbs Callbacks) Option {
 	}
 }
 
-// WithCallbacks returns an option that sets backoff options. For how backoff
-// works, see the underlying backoff package: https://github.com/jpillora/backoff.
+// WithBackoff returns an option that configures network request backoff. For how
+// backoff works, see the underlying backoff package: https://github.com/jpillora/backoff.
+// By default, the client uses the backoff package's default (maximum 10 seconds wait,
+// backoff factor of 2).
 func WithBackoff(b backoff.Backoff) Option {
 	return func(c *Client) error {
 		c.backoff = b

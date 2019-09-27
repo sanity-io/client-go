@@ -4,7 +4,10 @@
 
 This is a client for [Sanity](https://www.sanity.io) written in Go.
 
-## Example use
+## Using
+
+See the [API reference](https://godoc.org/github.com/sanity-io/client-go) for the full documentation.
+
 
 ```go
 package main
