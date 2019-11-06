@@ -171,15 +171,19 @@ func (c *Client) performGET(
 }
 
 func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) error {
-	body, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		body = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
+	responseBody := []byte("<no response body>")
+
+	if resp.Body != nil {
+		var err error
+		if responseBody, err = ioutil.ReadAll(resp.Body); err != nil {
+			responseBody = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
+		}
 	}
 
 	return &RequestError{
 		Request:  req,
 		Response: resp,
-		Body:     body,
+		Body:     responseBody,
 	}
 }
 
