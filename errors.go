@@ -24,6 +24,11 @@ func (e *RequestError) Error() string {
 	if len(body) > maxBody {
 		body = fmt.Sprintf("%s [... and %d more bytes]", body[0:maxBody], len(body)-maxBody)
 	}
-	return fmt.Sprintf("HTTP request [%s %s] failed with status %d: %s",
-		e.Request.Method, e.Request.URL.String(), e.Response.StatusCode, body)
+
+	msg := fmt.Sprintf("HTTP request [%s %s] failed with status %d",
+		e.Request.Method, e.Request.URL.String(), e.Response.StatusCode)
+	if body != "" {
+		msg += ": " + body
+	}
+	return msg
 }
