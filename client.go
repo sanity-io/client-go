@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
+
+	"github.com/sanity-io/client-go/internal/requests"
 )
 
 const DefaultDataset = "production"
@@ -78,6 +80,11 @@ func WithCDN(b bool) Option {
 	return func(c *Client) error { c.useCDN = b; return nil }
 }
 
+// WithBaseURL returns an option that changes the API URL.
+func WithBaseURL(url url.URL) Option {
+	return func(c *Client) error { c.baseURL = url; return nil }
+}
+
 // New returns a new client. A project ID must be provided. Zero or more options can
 // be passed. For example:
 //
@@ -96,7 +103,7 @@ func New(projectID string, opts ...Option) (*Client, error) {
 		dataset:   DefaultDataset,
 		baseURL: url.URL{
 			Scheme: "https",
-			Path:   "/v1/",
+			Path:   "/v1",
 		},
 	}
 
@@ -110,11 +117,14 @@ func New(projectID string, opts ...Option) (*Client, error) {
 		return nil, errors.New("dataset must be set")
 	}
 
-	if c.useCDN {
-		c.baseURL.Host = fmt.Sprintf("%s.apicdn.sanity.io", c.projectID)
-	} else {
-		c.baseURL.Host = fmt.Sprintf("%s.api.sanity.io", c.projectID)
+	if c.baseURL.Host == "" {
+		if c.useCDN {
+			c.baseURL.Host = fmt.Sprintf("%s.apicdn.sanity.io", c.projectID)
+		} else {
+			c.baseURL.Host = fmt.Sprintf("%s.api.sanity.io", c.projectID)
+		}
 	}
+
 	return &c, nil
 }
 
@@ -129,24 +139,19 @@ func (c *Client) WithOptions(opts ...Option) (*Client, error) {
 	return &copy, nil
 }
 
-func (c *Client) performGET(
-	ctx context.Context,
-	path string,
-	params url.Values,
-	output interface{},
-) (*http.Response, error) {
-	req, err := c.buildRequest(http.MethodGet, path, params)
-	if err != nil {
-		return nil, err
-	}
-
-	req = req.WithContext(ctx)
-
+func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) (*http.Response, error) {
 	bckoff := c.backoff
 	for {
+		req, err := r.HTTPRequest()
+		if err != nil {
+			return nil, err
+		}
+
+		req = req.WithContext(ctx)
+
 		resp, err := c.hc.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("[GET %s] failed: %w", req.URL.String(), err)
+			return nil, fmt.Errorf("[%s %s] failed: %w", req.Method, req.URL.String(), err)
 		}
 
 		defer func() {
@@ -154,10 +159,10 @@ func (c *Client) performGET(
 		}()
 
 		if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-			return resp, json.NewDecoder(resp.Body).Decode(output)
+			return resp, json.NewDecoder(resp.Body).Decode(dest)
 		}
 
-		if !isStatusCodeRetriable(resp.StatusCode) {
+		if !isMethodRetriable(req.Method) || !isStatusCodeRetriable(resp.StatusCode) {
 			return nil, c.handleErrorResponse(req, resp)
 		}
 
@@ -166,47 +171,33 @@ func (c *Client) performGET(
 		if c.callbacks.OnErrorWillRetry != nil {
 			c.callbacks.OnErrorWillRetry(err)
 		}
+
 		time.Sleep(bckoff.Duration())
 	}
 }
 
 func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) error {
-	responseBody := []byte("<no response body>")
+	body := []byte("[no response body]")
 
 	if resp.Body != nil {
 		var err error
-		if responseBody, err = ioutil.ReadAll(resp.Body); err != nil {
-			responseBody = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
+		if body, err = ioutil.ReadAll(resp.Body); err != nil {
+			body = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
 		}
 	}
 
 	return &RequestError{
 		Request:  req,
 		Response: resp,
-		Body:     responseBody,
+		Body:     body,
 	}
 }
 
-func (c *Client) buildRequest(method string, path string, params url.Values) (*http.Request, error) {
-	url := c.buildURL(path, params)
-
-	req, err := http.NewRequest(method, url.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-
+func (c *Client) newRequest() *requests.Request {
+	r := requests.New(c.baseURL)
+	r.Header("accept", "application/json")
 	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
+		r.Header("authorization", "Bearer "+c.token)
 	}
-	return req, nil
-}
-
-func (c *Client) buildURL(endpoint string, params url.Values) url.URL {
-	u := c.baseURL
-	u.Path += endpoint
-	if params != nil {
-		u.RawQuery = params.Encode()
-	}
-	return u
+	return r
 }
