@@ -34,9 +34,9 @@ func withSuite(t *testing.T, f func(*Suite), opts ...sanity.Option) {
 	require.NoError(t, err)
 	url.Path = "/v1"
 
-	opts = append(opts, sanity.WithBaseURL(*url), sanity.WithDataset("myDataset"))
+	opts = append(opts, sanity.WithHTTPHost(url.Scheme, url.Host))
 
-	c, err := sanity.VersionV1.NewClient("myProject", opts...)
+	c, err := sanity.VersionV1.NewClient("myProject", "myDataset", opts...)
 	require.NoError(t, err)
 
 	suite.client = c

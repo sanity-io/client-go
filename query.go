@@ -91,7 +91,7 @@ func (qb *QueryBuilder) Do(ctx context.Context) (*QueryResult, error) {
 }
 
 func (qb *QueryBuilder) buildGET() (*requests.Request, error) {
-	req := qb.c.newRequest().
+	req := qb.c.newQueryRequest().
 		AppendPath("data/query", qb.c.dataset).
 		Param("query", qb.query)
 	for p, v := range qb.params {
@@ -118,7 +118,7 @@ func (qb *QueryBuilder) buildPOST() (*requests.Request, error) {
 		request.Params[p] = (*json.RawMessage)(&b)
 	}
 
-	return qb.c.newRequest().
+	return qb.c.newQueryRequest().
 		Method(http.MethodPost).
 		AppendPath("data/query", qb.c.dataset).
 		MarshalBody(request), nil
