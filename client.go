@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -15,18 +16,52 @@ import (
 	"github.com/sanity-io/client-go/internal/requests"
 )
 
-const DefaultDataset = "production"
+const (
+	// Default dataset name for sanity projects
+	DefaultDataset = "production"
+
+	// VersionV1 is version 1, the initial released version
+	VersionV1 = Version("1")
+
+	// VersionExperimental is the experimental version
+	VersionExperimental = Version("X")
+
+	// Latest release
+	VersionV20210325 = Version("2021-03-25")
+)
+
+// Version is an API version, generally be dates in ISO format but also
+// "1" (for backwards compatibility) and "X" (for experimental features)
+type Version string
+
+// String implements fmt.Stringer.
+func (version Version) String() string {
+	return string(version)
+}
+
+// Validate validates a version
+func (version Version) Validate() error {
+	if version == "" {
+		return errors.New("no version given")
+	}
+	regExpVersion := regexp.MustCompile(`^(1|X|\d{4}-\d{2}-\d{2})$`)
+	if !regExpVersion.MatchString(string(version)) {
+		return fmt.Errorf("invalid version format %q", version)
+	}
+	return nil
+}
 
 // Client implements a client for interacting with the Sanity API.
 type Client struct {
-	hc        *http.Client
-	useCDN    bool
-	baseURL   url.URL
-	token     string
-	projectID string
-	dataset   string
-	backoff   backoff.Backoff
-	callbacks Callbacks
+	hc         *http.Client
+	apiVersion Version
+	useCDN     bool
+	baseURL    url.URL
+	token      string
+	projectID  string
+	dataset    string
+	backoff    backoff.Backoff
+	callbacks  Callbacks
 }
 
 type Option func(c *Client) error
@@ -88,22 +123,23 @@ func WithBaseURL(url url.URL) Option {
 // New returns a new client. A project ID must be provided. Zero or more options can
 // be passed. For example:
 //
-//     client := sanity.New("foobar123",
+//     client := sanity.VersionV20210325.NewClient("projectId",
 //       sanity.WithCDN(true), sanity.WithToken("mytoken"))
 //
-func New(projectID string, opts ...Option) (*Client, error) {
+func (v Version) NewClient(projectID string, opts ...Option) (*Client, error) {
 	if projectID == "" {
 		return nil, errors.New("project ID cannot be empty")
 	}
 
 	c := Client{
-		backoff:   backoff.Backoff{Jitter: true},
-		hc:        http.DefaultClient,
-		projectID: projectID,
-		dataset:   DefaultDataset,
+		apiVersion: v,
+		backoff:    backoff.Backoff{Jitter: true},
+		hc:         http.DefaultClient,
+		projectID:  projectID,
+		dataset:    DefaultDataset,
 		baseURL: url.URL{
 			Scheme: "https",
-			Path:   "/v1",
+			Path:   fmt.Sprintf("/v%s", v.String()),
 		},
 	}
 
