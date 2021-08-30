@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -19,6 +20,12 @@ import (
 const (
 	// Default dataset name for sanity projects
 	DefaultDataset = "production"
+
+	// API Host for skipping CDN
+	APIHost = "api.sanity.io"
+
+	// API Host which connects through CDN
+	APICDNHost = "apicdn.sanity.io"
 
 	// VersionV1 is version 1, the initial released version
 	VersionV1 = Version("1")
@@ -53,34 +60,30 @@ func (version Version) Validate() error {
 
 // Client implements a client for interacting with the Sanity API.
 type Client struct {
-	hc         *http.Client
-	apiVersion Version
-	useCDN     bool
-	baseURL    url.URL
-	token      string
-	projectID  string
-	dataset    string
-	backoff    backoff.Backoff
-	callbacks  Callbacks
+	hc           *http.Client
+	apiVersion   Version
+	useCDN       bool
+	baseAPIURL   url.URL
+	baseQueryURL url.URL // if useCDN=false, baseQueryURL will be same as baseAPIURL.
+	token        string
+	projectID    string
+	dataset      string
+	backoff      backoff.Backoff
+	callbacks    Callbacks
+	setHeaders   func(r *requests.Request)
 }
 
-type Option func(c *Client) error
+type Option func(c *Client)
 
 // WithHTTPClient returns an option for setting a custom HTTP client.
 func WithHTTPClient(client *http.Client) Option {
-	return func(c *Client) error {
-		c.hc = client
-		return nil
-	}
+	return func(c *Client) { c.hc = client }
 }
 
 // WithCallbacks returns an option that enables callbacks for common events
 // such as errors.
 func WithCallbacks(cbs Callbacks) Option {
-	return func(c *Client) error {
-		c.callbacks = cbs
-		return nil
-	}
+	return func(c *Client) { c.callbacks = cbs }
 }
 
 // WithBackoff returns an option that configures network request backoff. For how
@@ -88,91 +91,77 @@ func WithCallbacks(cbs Callbacks) Option {
 // By default, the client uses the backoff package's default (maximum 10 seconds wait,
 // backoff factor of 2).
 func WithBackoff(b backoff.Backoff) Option {
-	return func(c *Client) error {
-		c.backoff = b
-		return nil
-	}
+	return func(c *Client) { c.backoff = b }
 }
 
 // WithToken returns an option that sets the API token to use.
 func WithToken(t string) Option {
-	return func(c *Client) error {
-		c.token = t
-		return nil
-	}
-}
-
-// WithDataset returns an option that sets the dataset name.
-func WithDataset(id string) Option {
-	return func(c *Client) error {
-		c.dataset = id
-		return nil
-	}
+	return func(c *Client) { c.token = t }
 }
 
 // WithCDN returns an option that enables or disables the use of the Sanity API CDN.
 func WithCDN(b bool) Option {
-	return func(c *Client) error { c.useCDN = b; return nil }
+	return func(c *Client) { c.useCDN = b }
 }
 
-// WithBaseURL returns an option that changes the API URL.
-func WithBaseURL(url url.URL) Option {
-	return func(c *Client) error { c.baseURL = url; return nil }
+// WithHTTPHost returns an option that changes the API URL.
+func WithHTTPHost(scheme, host string) Option {
+	return func(c *Client) {
+		c.baseAPIURL.Scheme = scheme
+		c.baseAPIURL.Host = host
+		c.baseQueryURL.Scheme = scheme
+		c.baseQueryURL.Host = host
+	}
 }
 
-// New returns a new client. A project ID must be provided. Zero or more options can
-// be passed. For example:
+// NewClient returns a new versioned client. A project ID must be provided.
+// Zero or more options can be passed. For example:
 //
-//     client := sanity.VersionV20210325.NewClient("projectId",
+//     client := sanity.VersionV20210325.NewClient("projectId", sanity.DefaultDataset,
 //       sanity.WithCDN(true), sanity.WithToken("mytoken"))
 //
-func (v Version) NewClient(projectID string, opts ...Option) (*Client, error) {
+func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, error) {
 	if projectID == "" {
 		return nil, errors.New("project ID cannot be empty")
 	}
 
+	if dataset == "" {
+		return nil, errors.New("dataset must be set")
+	}
+
+	baseAPIURL := fmt.Sprintf("%s.%s", projectID, APIHost)
 	c := Client{
-		apiVersion: v,
 		backoff:    backoff.Backoff{Jitter: true},
 		hc:         http.DefaultClient,
 		projectID:  projectID,
-		dataset:    DefaultDataset,
-		baseURL: url.URL{
+		dataset:    dataset,
+		apiVersion: v,
+		baseAPIURL: url.URL{
 			Scheme: "https",
+			Host:   baseAPIURL,
 			Path:   fmt.Sprintf("/v%s", v.String()),
 		},
 	}
 
 	for _, opt := range opts {
-		if err := opt(&c); err != nil {
-			return nil, err
-		}
+		opt(&c)
 	}
 
-	if c.dataset == "" {
-		return nil, errors.New("dataset must be set")
+	c.baseQueryURL = c.baseAPIURL
+	// Only use APICDN if useCDN=true and API host has not been updated by options.
+	if c.useCDN && c.baseAPIURL.Host == baseAPIURL {
+		c.baseQueryURL.Host = fmt.Sprintf("%s.%s", projectID, APICDNHost)
 	}
 
-	if c.baseURL.Host == "" {
-		if c.useCDN {
-			c.baseURL.Host = fmt.Sprintf("%s.apicdn.sanity.io", c.projectID)
-		} else {
-			c.baseURL.Host = fmt.Sprintf("%s.api.sanity.io", c.projectID)
+	c.setHeaders = func(r *requests.Request) {
+		r.Header("accept", "application/json")
+		r.Header("user-agent", "Sanity Go client/"+runtime.Version())
+		if c.token != "" {
+			r.Header("authorization", "Bearer "+c.token)
 		}
 	}
 
 	return &c, nil
-}
-
-// WithOptions returns a new client instance with options modified.
-func (c *Client) WithOptions(opts ...Option) (*Client, error) {
-	copy := *c
-	for _, opt := range opts {
-		if err := opt(&copy); err != nil {
-			return nil, err
-		}
-	}
-	return &copy, nil
 }
 
 func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) (*http.Response, error) {
@@ -229,11 +218,14 @@ func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) err
 	}
 }
 
-func (c *Client) newRequest() *requests.Request {
-	r := requests.New(c.baseURL)
-	r.Header("accept", "application/json")
-	if c.token != "" {
-		r.Header("authorization", "Bearer "+c.token)
-	}
+func (c *Client) newAPIRequest() *requests.Request {
+	r := requests.New(c.baseAPIURL)
+	c.setHeaders(r)
+	return r
+}
+
+func (c *Client) newQueryRequest() *requests.Request {
+	r := requests.New(c.baseQueryURL)
+	c.setHeaders(r)
 	return r
 }

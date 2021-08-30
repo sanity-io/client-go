@@ -58,7 +58,7 @@ func (mb *MutationBuilder) Do(ctx context.Context) (*MutateResult, error) {
 		return nil, fmt.Errorf("mutation builder: %w", mb.err)
 	}
 
-	req := mb.c.newRequest().
+	req := mb.c.newAPIRequest().
 		Method(http.MethodPost).
 		AppendPath("data/mutate", mb.c.dataset).
 		Param("returnIds", mb.returnIDs).
