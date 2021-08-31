@@ -67,7 +67,8 @@ func (b *Request) Path(elems ...string) *Request {
 
 func (b *Request) AppendPath(elems ...string) *Request {
 	for _, elem := range elems {
-		if (b.path == "" || b.path[len(b.path)-1] != '/') && elem[0] != '/' {
+		if (b.path == "" || b.path[len(b.path)-1] != '/') &&
+			(len(elem) > 0 && elem[0] != '/') {
 			b.path += "/"
 		}
 		b.path += elem
