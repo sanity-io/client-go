@@ -123,5 +123,3 @@ func (qb *QueryBuilder) buildPOST() (*requests.Request, error) {
 		AppendPath("data/query", qb.c.dataset).
 		MarshalBody(request), nil
 }
-
-const maxGETRequestURLLength = 1024

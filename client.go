@@ -229,3 +229,5 @@ func (c *Client) newQueryRequest() *requests.Request {
 	c.setHeaders(r)
 	return r
 }
+
+const maxGETRequestURLLength = 1024

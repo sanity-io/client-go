@@ -52,6 +52,19 @@ type testDocument struct {
 	Value     string    `json:"value"`
 }
 
+func (d testDocument) toMap() map[string]interface{} {
+	m, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
+	var doc map[string]interface{}
+	if err := json.Unmarshal(m, &doc); err != nil {
+		panic(err)
+	}
+	return doc
+}
+
 type testDocumentWithCustomJSONMarshaler struct{}
 
 func (testDocumentWithCustomJSONMarshaler) MarshalJSON() ([]byte, error) {
