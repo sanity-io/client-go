@@ -77,3 +77,12 @@ type QueryResponse struct {
 	// Result is the raw JSON of the query result.
 	Result *json.RawMessage `json:"result"`
 }
+
+// GetDocumentsResponse holds result of GET documents API call.
+type GetDocumentsResponse struct {
+	// Documents is slice of documents
+	Documents []Document `json:"documents"`
+}
+
+// Document is a map of document attributes
+type Document map[string]interface{}
