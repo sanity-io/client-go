@@ -75,7 +75,8 @@ func (mb *MutationBuilder) Do(ctx context.Context) (*MutateResult, error) {
 	}
 
 	return &MutateResult{
-		Results: resp.Results,
+		TransactionID: resp.TransactionID,
+		Results:       resp.Results,
 	}, nil
 }
 
