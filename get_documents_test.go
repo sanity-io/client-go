@@ -35,6 +35,30 @@ func TestGetDocuments(t *testing.T) {
 
 	testDocuments := []api.Document{testDoc1.toMap(), testDoc2.toMap()}
 
+	t.Run("No document ID specified", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			_, err := s.client.GetDocuments().Do(context.Background())
+			require.Error(t, err)
+
+			var reqErr *sanity.InvalidRequestError
+			require.True(t, errors.As(err, &reqErr))
+		})
+	})
+
+	t.Run("Empty document ID specified", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Get("/v1/data/doc/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			})
+
+			_, err := s.client.GetDocuments([]string{""}...).Do(context.Background())
+			require.Error(t, err)
+
+			var reqErr *sanity.RequestError
+			require.True(t, errors.As(err, &reqErr))
+		})
+	})
+
 	t.Run("GET URL length exceeded", func(t *testing.T) {
 		withSuite(t, func(s *Suite) {
 			docID := make([]rune, 1024)
@@ -63,16 +87,6 @@ func TestGetDocuments(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, testDocuments, result.Documents)
-		})
-	})
-
-	t.Run("No document ID specified", func(t *testing.T) {
-		withSuite(t, func(s *Suite) {
-			_, err := s.client.GetDocuments().Do(context.Background())
-			require.Error(t, err)
-
-			var reqErr *sanity.InvalidRequestError
-			require.True(t, errors.As(err, &reqErr))
 		})
 	})
 }
