@@ -9,7 +9,8 @@ type MutateRequest struct {
 }
 
 type MutateResponse struct {
-	Results []*MutateResultItem `json:"results"`
+	TransactionID string              `json:"transactionId"`
+	Results       []*MutateResultItem `json:"results"`
 }
 
 type MutationItem struct {
