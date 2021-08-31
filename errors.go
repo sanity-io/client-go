@@ -32,3 +32,14 @@ func (e *RequestError) Error() string {
 	}
 	return msg
 }
+
+// InvalidRequestError is returned when builder errors on creating API request object.
+type InvalidRequestError struct {
+	// Description is the reason for error.
+	Description string
+}
+
+// Error implements the error interface.
+func (e *InvalidRequestError) Error() string {
+	return e.Description
+}
