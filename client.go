@@ -60,17 +60,18 @@ func (version Version) Validate() error {
 
 // Client implements a client for interacting with the Sanity API.
 type Client struct {
-	hc           *http.Client
-	apiVersion   Version
-	useCDN       bool
-	baseAPIURL   url.URL
-	baseQueryURL url.URL // if useCDN=false, baseQueryURL will be same as baseAPIURL.
-	token        string
-	projectID    string
-	dataset      string
-	backoff      backoff.Backoff
-	callbacks    Callbacks
-	setHeaders   func(r *requests.Request)
+	hc            *http.Client
+	apiVersion    Version
+	useCDN        bool
+	baseAPIURL    url.URL
+	baseQueryURL  url.URL // if useCDN=false, baseQueryURL will be same as baseAPIURL.
+	customHeaders map[string]string
+	token         string
+	projectID     string
+	dataset       string
+	backoff       backoff.Backoff
+	callbacks     Callbacks
+	setHeaders    func(r *requests.Request)
 }
 
 type Option func(c *Client)
@@ -114,6 +115,14 @@ func WithHTTPHost(scheme, host string) Option {
 	}
 }
 
+// WithHTTPHeaders returns an option for setting a custom HTTP headers.
+// These headers are set in addition to the ones defined in Client.setHeaders().
+// If a custom header is added with the same key as one of default header, then
+// custom value is appended to key, and does not replace default value.
+func WithHTTPHeaders(headers map[string]string) Option {
+	return func(c *Client) { c.customHeaders = headers }
+}
+
 // NewClient returns a new versioned client. A project ID must be provided.
 // Zero or more options can be passed. For example:
 //
@@ -153,11 +162,18 @@ func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, 
 		c.baseQueryURL.Host = fmt.Sprintf("%s.%s", projectID, APICDNHost)
 	}
 
-	c.setHeaders = func(r *requests.Request) {
+	setDefaultHeaders := func(r *requests.Request) {
 		r.Header("accept", "application/json")
 		r.Header("user-agent", "Sanity Go client/"+runtime.Version())
 		if c.token != "" {
 			r.Header("authorization", "Bearer "+c.token)
+		}
+	}
+
+	c.setHeaders = func(r *requests.Request) {
+		setDefaultHeaders(r)
+		for key, value := range c.customHeaders {
+			r.Header(key, value)
 		}
 	}
 
