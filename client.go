@@ -163,7 +163,6 @@ func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, 
 	}
 
 	setDefaultHeaders := func(r *requests.Request) {
-		r.Header("accept", "application/json")
 		r.Header("user-agent", "Sanity Go client/"+runtime.Version())
 		if c.token != "" {
 			r.Header("authorization", "Bearer "+c.token)
