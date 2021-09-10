@@ -188,15 +188,18 @@ func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, 
 }
 
 func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) (*http.Response, error) {
+	req, err := r.HTTPRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Method == http.MethodGet && len(r.EncodeURL()) > maxGETRequestURLLength {
+		return nil, errors.New("max URL length exceeded in GET request")
+	}
+
+	req = req.WithContext(ctx)
 	bckoff := c.backoff
 	for {
-		req, err := r.HTTPRequest()
-		if err != nil {
-			return nil, err
-		}
-
-		req = req.WithContext(ctx)
-
 		resp, err := c.hc.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("[%s %s] failed: %w", req.Method, req.URL.String(), err)
