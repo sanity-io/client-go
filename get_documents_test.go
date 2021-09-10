@@ -37,11 +37,9 @@ func TestGetDocuments(t *testing.T) {
 
 	t.Run("No document ID specified", func(t *testing.T) {
 		withSuite(t, func(s *Suite) {
-			_, err := s.client.GetDocuments().Do(context.Background())
-			require.Error(t, err)
-
-			var reqErr *sanity.InvalidRequestError
-			require.True(t, errors.As(err, &reqErr))
+			resp, err := s.client.GetDocuments().Do(context.Background())
+			require.NoError(t, err)
+			require.Nil(t, resp.Documents)
 		})
 	})
 
@@ -67,9 +65,6 @@ func TestGetDocuments(t *testing.T) {
 			}
 			_, err := s.client.GetDocuments(string(docID)).Do(context.Background())
 			require.Error(t, err)
-
-			var reqErr *sanity.InvalidRequestError
-			require.True(t, errors.As(err, &reqErr))
 		})
 	})
 
