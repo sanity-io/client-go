@@ -27,14 +27,18 @@ const (
 	// API Host which connects through CDN
 	APICDNHost = "apicdn.sanity.io"
 
-	// VersionV1 is version 1, the initial released version
+	// VersionV1 is API version 1, the initial released version
 	VersionV1 = Version("1")
 
-	// VersionExperimental is the experimental version
+	// VersionExperimental is the experimental API version
 	VersionExperimental = Version("X")
 
-	// Latest release
+	// Latest API version release
 	VersionV20210325 = Version("2021-03-25")
+
+	// Deprecated: VersionDefault is the API version used when client is
+	// instantiated without any specific version.
+	VersionDefault = VersionV1
 )
 
 // Version is an API version, generally be dates in ISO format but also
@@ -127,6 +131,16 @@ func WithHTTPHeader(key, value string) Option {
 		}
 		c.customHeaders.Add(key, value)
 	}
+}
+
+// Deprecated: Use version.NewClient() instead.
+// New returns a new client with a default API version. A project ID must be provided.
+// Zero or more options can be passed. For example:
+//
+//     client := sanity.New("projectId", sanity.DefaultDataset,
+//       sanity.WithCDN(true), sanity.WithToken("mytoken"))
+func New(projectID, dataset string, opts ...Option) (*Client, error) {
+	return VersionDefault.NewClient(projectID, dataset, opts...)
 }
 
 // NewClient returns a new versioned client. A project ID must be provided.
