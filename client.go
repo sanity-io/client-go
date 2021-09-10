@@ -65,7 +65,7 @@ type Client struct {
 	useCDN        bool
 	baseAPIURL    url.URL
 	baseQueryURL  url.URL // if useCDN=false, baseQueryURL will be same as baseAPIURL.
-	customHeaders map[string]string
+	customHeaders http.Header
 	token         string
 	projectID     string
 	dataset       string
@@ -101,6 +101,7 @@ func WithToken(t string) Option {
 }
 
 // WithCDN returns an option that enables or disables the use of the Sanity API CDN.
+// It is ignored when a custom HTTP host is set.
 func WithCDN(b bool) Option {
 	return func(c *Client) { c.useCDN = b }
 }
@@ -115,12 +116,17 @@ func WithHTTPHost(scheme, host string) Option {
 	}
 }
 
-// WithHTTPHeaders returns an option for setting a custom HTTP headers.
+// WithHTTPHeader returns an option for setting a custom HTTP header.
 // These headers are set in addition to the ones defined in Client.setHeaders().
 // If a custom header is added with the same key as one of default header, then
 // custom value is appended to key, and does not replace default value.
-func WithHTTPHeaders(headers map[string]string) Option {
-	return func(c *Client) { c.customHeaders = headers }
+func WithHTTPHeader(key, value string) Option {
+	return func(c *Client) {
+		if c.customHeaders == nil {
+			c.customHeaders = make(http.Header)
+		}
+		c.customHeaders.Add(key, value)
+	}
 }
 
 // NewClient returns a new versioned client. A project ID must be provided.
@@ -171,8 +177,10 @@ func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, 
 
 	c.setHeaders = func(r *requests.Request) {
 		setDefaultHeaders(r)
-		for key, value := range c.customHeaders {
-			r.Header(key, value)
+		for key, values := range c.customHeaders {
+			for _, value := range values {
+				r.Header(key, value)
+			}
 		}
 	}
 
