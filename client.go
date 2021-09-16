@@ -207,6 +207,12 @@ func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) 
 		return nil, err
 	}
 
+	// Workaround for setting custom host header which is overridden after req.Header.Add()
+	// See: https://github.com/golang/go/issues/29865
+	if host := req.Header.Get("host"); host != "" {
+		req.Host = host
+	}
+
 	if req.Method == http.MethodGet && len(r.EncodeURL()) > maxGETRequestURLLength {
 		return nil, errors.New("max URL length exceeded in GET request")
 	}
