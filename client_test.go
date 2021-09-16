@@ -32,6 +32,7 @@ func TestCustomHeaders(t *testing.T) {
 		s.mux.Get("/v1/data/query/myDataset", func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "bar", r.Header.Get("foo"))
 			assert.Equal(t, []string{"application/json", "text/xml"}, r.Header.Values("accept"))
+			assert.Equal(t, "sanity.io", r.Host)
 
 			_, err := w.Write([]byte("{}"))
 			assert.NoError(t, err)
@@ -43,6 +44,7 @@ func TestCustomHeaders(t *testing.T) {
 		sanity.WithHTTPHeader("foo", "bar"),
 		sanity.WithHTTPHeader("foo", "baz"), // Should be ignored
 		sanity.WithHTTPHeader("accept", "text/xml"),
+		sanity.WithHTTPHeader("host", "sanity.io"),
 	)
 }
 
