@@ -31,6 +31,7 @@ type MutationBuilder struct {
 	returnDocs    bool
 	visibility    api.MutationVisibility
 	transactionID string
+	dryRun        bool
 }
 
 func (mb *MutationBuilder) Visibility(v api.MutationVisibility) *MutationBuilder {
@@ -53,6 +54,11 @@ func (mb *MutationBuilder) ReturnDocuments(enable bool) *MutationBuilder {
 	return mb
 }
 
+func (mb *MutationBuilder) DryRun(enable bool) *MutationBuilder {
+	mb.dryRun = enable
+	return mb
+}
+
 func (mb *MutationBuilder) Do(ctx context.Context) (*MutateResult, error) {
 	if mb.err != nil {
 		return nil, fmt.Errorf("mutation builder: %w", mb.err)
@@ -64,6 +70,7 @@ func (mb *MutationBuilder) Do(ctx context.Context) (*MutateResult, error) {
 		Param("returnIds", mb.returnIDs).
 		Param("returnDocuments", mb.returnDocs).
 		Param("visibility", string(mb.visibility)).
+		Param("dryRun", mb.dryRun).
 		MarshalBody(&api.MutateRequest{Mutations: mb.items})
 	if mb.transactionID != "" {
 		req.Param("transactionId", mb.transactionID)

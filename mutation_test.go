@@ -427,3 +427,33 @@ func TestMutation_Builder_visibilityOption(t *testing.T) {
 		})
 	})
 }
+
+func TestMutation_Builder_dryRunOption(t *testing.T) {
+	t.Run("can be set to true", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Post("/v1/data/mutate/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "true", r.URL.Query().Get("dryRun"))
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.MutateResponse{}))
+				assert.NoError(t, err)
+			})
+
+			_, err := s.client.Mutate().DryRun(true).Do(context.Background())
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("defaults to false", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Post("/v1/data/mutate/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "false", r.URL.Query().Get("dryRun"))
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.MutateResponse{}))
+				assert.NoError(t, err)
+			})
+
+			_, err := s.client.Mutate().Do(context.Background())
+			require.NoError(t, err)
+		})
+	})
+}
