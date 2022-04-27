@@ -77,12 +77,10 @@ func (mb *MutationBuilder) Do(ctx context.Context) (*MutateResult, error) {
 		Param("returnDocuments", mb.returnDocs).
 		Param("visibility", string(mb.visibility)).
 		Param("dryRun", mb.dryRun).
-		MarshalBody(&api.MutateRequest{Mutations: mb.items})
+		MarshalBody(&api.MutateRequest{Mutations: mb.items}).
+		Tag(mb.tag, mb.c.tag)
 	if mb.transactionID != "" {
 		req.Param("transactionId", mb.transactionID)
-	}
-	if mb.tag != "" {
-		req.Param("tag", mb.tag)
 	}
 
 	var resp api.MutateResponse

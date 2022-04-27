@@ -106,6 +106,15 @@ func (b *Request) Param(name string, val interface{}) *Request {
 	return b
 }
 
+func (b *Request) Tag(tag string, defaultTag string) *Request {
+	if tag != "" {
+		b.Param("tag", tag)
+	} else if defaultTag != "" {
+		b.Param("tag", defaultTag)
+	}
+	return b
+}
+
 func (b *Request) MaxResponseSize(limit int64) *Request {
 	b.maxResponseSize = limit
 	return b

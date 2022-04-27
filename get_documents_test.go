@@ -84,4 +84,26 @@ func TestGetDocuments(t *testing.T) {
 			assert.Equal(t, testDocuments, result.Documents)
 		})
 	})
+
+	t.Run("supports default tag", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Get("/v1/data/doc/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "default", r.URL.Query().Get("tag"))
+				w.WriteHeader(http.StatusNotFound)
+			})
+			_, err := s.client.GetDocuments([]string{""}...).Do(context.Background())
+			require.Error(t, err)
+		}, sanity.WithTag("default"))
+	})
+
+	t.Run("supports overwriting tag", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Get("/v1/data/doc/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "custom", r.URL.Query().Get("tag"))
+				w.WriteHeader(http.StatusNotFound)
+			})
+			_, err := s.client.GetDocuments([]string{""}...).Tag("custom").Do(context.Background())
+			require.Error(t, err)
+		}, sanity.WithTag("tag"))
+	})
 }

@@ -46,6 +46,7 @@ type QueryBuilder struct {
 	c      *Client
 	query  string
 	params map[string]interface{}
+	tag    string
 }
 
 // Param adds a query parameter. For example, Param("foo", "bar") makes $foo usable inside the
@@ -56,6 +57,11 @@ func (qb *QueryBuilder) Param(name string, val interface{}) *QueryBuilder {
 	}
 
 	qb.params[name] = val
+	return qb
+}
+
+func (qb *QueryBuilder) Tag(tag string) *QueryBuilder {
+	qb.tag = tag
 	return qb
 }
 
@@ -93,7 +99,8 @@ func (qb *QueryBuilder) Do(ctx context.Context) (*QueryResult, error) {
 func (qb *QueryBuilder) buildGET() (*requests.Request, error) {
 	req := qb.c.newQueryRequest().
 		AppendPath("data/query", qb.c.dataset).
-		Param("query", qb.query)
+		Param("query", qb.query).
+		Tag(qb.tag, qb.c.tag)
 	for p, v := range qb.params {
 		b, err := json.Marshal(v)
 		if err != nil {
@@ -121,5 +128,6 @@ func (qb *QueryBuilder) buildPOST() (*requests.Request, error) {
 	return qb.c.newQueryRequest().
 		Method(http.MethodPost).
 		AppendPath("data/query", qb.c.dataset).
-		MarshalBody(request), nil
+		MarshalBody(request).
+		Tag(qb.tag, qb.c.tag), nil
 }

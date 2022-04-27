@@ -76,6 +76,7 @@ type Client struct {
 	backoff       backoff.Backoff
 	callbacks     Callbacks
 	setHeaders    func(r *requests.Request)
+	tag           string
 }
 
 type Option func(c *Client)
@@ -131,6 +132,11 @@ func WithHTTPHeader(key, value string) Option {
 		}
 		c.customHeaders.Add(key, value)
 	}
+}
+
+// WithTag returns an option for setting the default tag to set on all requests.
+func WithTag(t string) Option {
+	return func(c *Client) { c.tag = t }
 }
 
 // Deprecated: Use version.NewClient() instead.
