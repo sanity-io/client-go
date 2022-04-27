@@ -459,7 +459,7 @@ func TestMutation_Builder_dryRunOption(t *testing.T) {
 }
 
 func TestMutation_Builder_tagOption(t *testing.T) {
-	t.Run("can be set to a string", func(t *testing.T) {
+	t.Run("can be overridden", func(t *testing.T) {
 		withSuite(t, func(s *Suite) {
 			s.mux.Post("/v1/data/mutate/myDataset", func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "foobar", r.URL.Query().Get("tag"))
@@ -470,7 +470,21 @@ func TestMutation_Builder_tagOption(t *testing.T) {
 
 			_, err := s.client.Mutate().Tag("foobar").Do(context.Background())
 			require.NoError(t, err)
-		})
+		}, sanity.WithTag("default"))
+	})
+
+	t.Run("honors default", func(t *testing.T) {
+		withSuite(t, func(s *Suite) {
+			s.mux.Post("/v1/data/mutate/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "default", r.URL.Query().Get("tag"))
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.MutateResponse{}))
+				assert.NoError(t, err)
+			})
+
+			_, err := s.client.Mutate().Do(context.Background())
+			require.NoError(t, err)
+		}, sanity.WithTag("default"))
 	})
 
 	t.Run("defaults to empty", func(t *testing.T) {

@@ -16,6 +16,12 @@ func (c *Client) GetDocuments(docIDs ...string) *GetDocumentsBuilder {
 type GetDocumentsBuilder struct {
 	c      *Client
 	docIDs []string
+	tag    string
+}
+
+func (b *GetDocumentsBuilder) Tag(tag string) *GetDocumentsBuilder {
+	b.tag = tag
+	return b
 }
 
 // Do performs the query.
@@ -26,7 +32,8 @@ func (b *GetDocumentsBuilder) Do(ctx context.Context) (*api.GetDocumentsResponse
 	}
 
 	req := b.c.newAPIRequest().
-		AppendPath("data/doc", b.c.dataset, strings.Join(b.docIDs, ","))
+		AppendPath("data/doc", b.c.dataset, strings.Join(b.docIDs, ",")).
+		Tag(b.tag, b.c.tag)
 
 	var resp api.GetDocumentsResponse
 	if _, err := b.c.do(ctx, req, &resp); err != nil {

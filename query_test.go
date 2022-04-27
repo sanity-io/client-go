@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	sanity "github.com/sanity-io/client-go"
 	"github.com/sanity-io/client-go/api"
 )
 
@@ -120,5 +121,68 @@ func TestQuery_large(t *testing.T) {
 
 		_, err := builder.Do(context.Background())
 		require.NoError(t, err)
+	})
+}
+
+func TestQuery_tag(t *testing.T) {
+	t.Run("small queries with default tag", func(t *testing.T) {
+		groq := "*[foo=='" + strings.Repeat("foo", 1) + "']"
+
+		withSuite(t, func(s *Suite) {
+			s.mux.Get("/v1/data/query/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "default", r.URL.Query().Get("tag"))
+
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.QueryResponse{}))
+				assert.NoError(t, err)
+			})
+			_, err := s.client.Query(groq).Param("val", 1.23).Do(context.Background())
+			require.NoError(t, err)
+		}, sanity.WithTag("default"))
+	})
+	t.Run("small queries overwrites tag", func(t *testing.T) {
+		groq := "*[foo=='" + strings.Repeat("foo", 1) + "']"
+
+		withSuite(t, func(s *Suite) {
+			s.mux.Get("/v1/data/query/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "tag", r.URL.Query().Get("tag"))
+
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.QueryResponse{}))
+				assert.NoError(t, err)
+			})
+			_, err := s.client.Query(groq).Param("val", 1.23).Tag("tag").Do(context.Background())
+			require.NoError(t, err)
+		}, sanity.WithTag("default"))
+	})
+	t.Run("large queries with default tag", func(t *testing.T) {
+		groq := "*[foo=='" + strings.Repeat("foo", 1000) + "']"
+
+		withSuite(t, func(s *Suite) {
+			s.mux.Post("/v1/data/query/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "default", r.URL.Query().Get("tag"))
+
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.QueryResponse{}))
+				assert.NoError(t, err)
+			})
+			_, err := s.client.Query(groq).Param("val", 1.23).Do(context.Background())
+			require.NoError(t, err)
+		}, sanity.WithTag("default"))
+	})
+	t.Run("large queries overwrites tag", func(t *testing.T) {
+		groq := "*[foo=='" + strings.Repeat("foo", 1000) + "']"
+
+		withSuite(t, func(s *Suite) {
+			s.mux.Post("/v1/data/query/myDataset", func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "tag", r.URL.Query().Get("tag"))
+
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write(mustJSONBytes(&api.QueryResponse{}))
+				assert.NoError(t, err)
+			})
+			_, err := s.client.Query(groq).Param("val", 1.23).Tag("tag").Do(context.Background())
+			require.NoError(t, err)
+		}, sanity.WithTag("default"))
 	})
 }
