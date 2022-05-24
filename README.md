@@ -36,8 +36,13 @@ func main() {
     ID    string `json:"_id"`
     Title string
   }
-  if err = client.Query(context.Background(), "*[_type == 'project' && _id == $id][0]", &project,
-    sanity.Param("id", "123")); err != nil {
+  queryBuilder = client.Query(context.Background(), "*[_type == 'project' && _id == $id][0]")
+  queryBuilder.param("id", 123)
+
+  queryResult, err := queryBuilder.Do(); 
+  queryResult.Unmarshal(&project)
+
+  if err != nil  {
     log.Fatal(err)
   }
 
