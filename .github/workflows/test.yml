@@ -4,7 +4,7 @@ on:
   push:
 
 jobs:
-  scheduled:
+  tests:
     runs-on: ubuntu-latest
     steps:
       - name: Check out this repo
