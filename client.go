@@ -143,8 +143,8 @@ func WithTag(t string) Option {
 // New returns a new client with a default API version. A project ID must be provided.
 // Zero or more options can be passed. For example:
 //
-//     client := sanity.New("projectId", sanity.DefaultDataset,
-//       sanity.WithCDN(true), sanity.WithToken("mytoken"))
+//	client := sanity.New("projectId", sanity.DefaultDataset,
+//	  sanity.WithCDN(true), sanity.WithToken("mytoken"))
 func New(projectID, dataset string, opts ...Option) (*Client, error) {
 	return VersionDefault.NewClient(projectID, dataset, opts...)
 }
@@ -152,9 +152,8 @@ func New(projectID, dataset string, opts ...Option) (*Client, error) {
 // NewClient returns a new versioned client. A project ID must be provided.
 // Zero or more options can be passed. For example:
 //
-//     client := sanity.VersionV20210325.NewClient("projectId", sanity.DefaultDataset,
-//       sanity.WithCDN(true), sanity.WithToken("mytoken"))
-//
+//	client := sanity.VersionV20210325.NewClient("projectId", sanity.DefaultDataset,
+//	  sanity.WithCDN(true), sanity.WithToken("mytoken"))
 func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, error) {
 	if projectID == "" {
 		return nil, errors.New("project ID cannot be empty")
@@ -267,6 +266,38 @@ func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) err
 		Request:  req,
 		Response: resp,
 		Body:     body,
+	}
+}
+
+func (c *Client) doRaw(ctx context.Context, r *requests.Request) (*http.Response, error) {
+	req, err := r.HTTPRequest()
+	if err != nil {
+		return nil, err
+	}
+	if host := req.Header.Get("host"); host != "" {
+		req.Host = host
+	}
+	if req.Method == http.MethodGet && len(r.EncodeURL()) > maxGETRequestURLLength {
+		return nil, errors.New("max URL length exceeded in GET request")
+	}
+	req = req.WithContext(ctx)
+	bckoff := c.backoff
+	for {
+		resp, err := c.hc.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("[%s %s] failed: %w", req.Method, req.URL.String(), err)
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+			return resp, nil
+		}
+		if !isMethodRetriable(req.Method) || !isStatusCodeRetriable(resp.StatusCode) {
+			return nil, c.handleErrorResponse(req, resp)
+		}
+		_ = resp.Body.Close()
+		if c.callbacks.OnErrorWillRetry != nil {
+			c.callbacks.OnErrorWillRetry(err)
+		}
+		time.Sleep(bckoff.Duration())
 	}
 }
 
