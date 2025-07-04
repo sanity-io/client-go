@@ -143,8 +143,8 @@ func WithTag(t string) Option {
 // New returns a new client with a default API version. A project ID must be provided.
 // Zero or more options can be passed. For example:
 //
-//     client := sanity.New("projectId", sanity.DefaultDataset,
-//       sanity.WithCDN(true), sanity.WithToken("mytoken"))
+//	client := sanity.New("projectId", sanity.DefaultDataset,
+//	  sanity.WithCDN(true), sanity.WithToken("mytoken"))
 func New(projectID, dataset string, opts ...Option) (*Client, error) {
 	return VersionDefault.NewClient(projectID, dataset, opts...)
 }
@@ -152,9 +152,8 @@ func New(projectID, dataset string, opts ...Option) (*Client, error) {
 // NewClient returns a new versioned client. A project ID must be provided.
 // Zero or more options can be passed. For example:
 //
-//     client := sanity.VersionV20210325.NewClient("projectId", sanity.DefaultDataset,
-//       sanity.WithCDN(true), sanity.WithToken("mytoken"))
-//
+//	client := sanity.VersionV20210325.NewClient("projectId", sanity.DefaultDataset,
+//	  sanity.WithCDN(true), sanity.WithToken("mytoken"))
 func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, error) {
 	if projectID == "" {
 		return nil, errors.New("project ID cannot be empty")
@@ -208,6 +207,37 @@ func (v Version) NewClient(projectID, dataset string, opts ...Option) (*Client, 
 }
 
 func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) (*http.Response, error) {
+	resp, err := c.doRaw(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	return resp, json.NewDecoder(resp.Body).Decode(dest)
+}
+
+func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) error {
+	body := []byte("[no response body]")
+
+	if resp.Body != nil {
+		var err error
+		if body, err = ioutil.ReadAll(resp.Body); err != nil {
+			body = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
+		}
+	}
+
+	return &RequestError{
+		Request:  req,
+		Response: resp,
+		Body:     body,
+	}
+}
+
+// doRaw returns the response with its body unread. The caller must close the body.
+func (c *Client) doRaw(ctx context.Context, r *requests.Request) (*http.Response, error) {
 	req, err := r.HTTPRequest()
 	if err != nil {
 		return nil, err
@@ -231,42 +261,22 @@ func (c *Client) do(ctx context.Context, r *requests.Request, dest interface{}) 
 			return nil, fmt.Errorf("[%s %s] failed: %w", req.Method, req.URL.String(), err)
 		}
 
-		defer func() {
-			_ = resp.Body.Close()
-		}()
-
 		if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-			return resp, json.NewDecoder(resp.Body).Decode(dest)
+			return resp, nil
 		}
 
-		if !isMethodRetriable(req.Method) || !isStatusCodeRetriable(resp.StatusCode) {
-			return nil, c.handleErrorResponse(req, resp)
-		}
-
+		respErr := c.handleErrorResponse(req, resp)
 		_ = resp.Body.Close()
 
+		if !isMethodRetriable(req.Method) || !isStatusCodeRetriable(resp.StatusCode) {
+			return nil, respErr
+		}
+
 		if c.callbacks.OnErrorWillRetry != nil {
-			c.callbacks.OnErrorWillRetry(err)
+			c.callbacks.OnErrorWillRetry(respErr)
 		}
 
 		time.Sleep(bckoff.Duration())
-	}
-}
-
-func (c *Client) handleErrorResponse(req *http.Request, resp *http.Response) error {
-	body := []byte("[no response body]")
-
-	if resp.Body != nil {
-		var err error
-		if body, err = ioutil.ReadAll(resp.Body); err != nil {
-			body = []byte(fmt.Sprintf("[failed to read response body: %s]", err))
-		}
-	}
-
-	return &RequestError{
-		Request:  req,
-		Response: resp,
-		Body:     body,
 	}
 }
 

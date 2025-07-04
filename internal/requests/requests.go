@@ -84,6 +84,15 @@ func (b *Request) Header(name, val string) *Request {
 	return b
 }
 
+// SetHeader replaces any existing values for the header, unlike Header, which appends.
+func (b *Request) SetHeader(name, val string) *Request {
+	if b.headers == nil {
+		b.headers = make(http.Header, 10) // Small capacity
+	}
+	b.headers.Set(name, val)
+	return b
+}
+
 func (b *Request) Param(name string, val interface{}) *Request {
 	if b.params == nil {
 		b.params = make(url.Values, 10) // Small capacity
