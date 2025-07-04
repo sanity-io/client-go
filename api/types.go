@@ -87,3 +87,10 @@ type GetDocumentsResponse struct {
 
 // Document is a map of document attributes
 type Document map[string]interface{}
+
+// ListenEvent represents a single event from the listen API.
+type ListenEvent struct {
+	Type string
+	ID   string
+	Data *json.RawMessage
+}
