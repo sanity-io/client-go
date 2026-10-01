@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/sanity-io/client-go/api"
@@ -24,6 +25,8 @@ type ListenBuilder struct {
 	query         string
 	params        map[string]interface{}
 	includeResult bool
+	enableResume  bool
+	lastEventID   string
 	tag           string
 }
 
@@ -43,6 +46,20 @@ func (lb *ListenBuilder) IncludeResult(b bool) *ListenBuilder {
 
 func (lb *ListenBuilder) Tag(tag string) *ListenBuilder {
 	lb.tag = tag
+	return lb
+}
+
+// EnableResume asks the server to put an ID on every event, so that a stream which breaks
+// can continue from its last position. Pass that ID to LastEventID on the next attempt.
+func (lb *ListenBuilder) EnableResume(b bool) *ListenBuilder {
+	lb.enableResume = b
+	return lb
+}
+
+// LastEventID continues the stream after the event with the given ID. The ID must come
+// from an earlier stream of the same query, started with EnableResume(true).
+func (lb *ListenBuilder) LastEventID(id string) *ListenBuilder {
+	lb.lastEventID = id
 	return lb
 }
 
@@ -66,6 +83,12 @@ func (lb *ListenBuilder) Do(ctx context.Context) (*ListenStream, error) {
 	if lb.includeResult {
 		req.Param("includeResult", true)
 	}
+	if lb.enableResume {
+		req.Param("enableResume", true)
+	}
+	if lb.lastEventID != "" {
+		req.SetHeader("last-event-id", lb.lastEventID)
+	}
 
 	resp, err := lb.c.doRaw(ctx, req)
 	if err != nil {
@@ -81,6 +104,23 @@ type ListenStream struct {
 	resp   *http.Response
 	r      *bufio.Reader
 	closed int32
+
+	mu          sync.Mutex
+	lastEventID string
+}
+
+// LastEventID returns the ID of the most recent complete event, or an empty string if no
+// event carried an ID. Give it to ListenBuilder.LastEventID to continue a broken stream.
+func (ls *ListenStream) LastEventID() string {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	return ls.lastEventID
+}
+
+func (ls *ListenStream) setLastEventID(id string) {
+	ls.mu.Lock()
+	ls.lastEventID = id
+	ls.mu.Unlock()
 }
 
 func (ls *ListenStream) Close() error {
@@ -109,6 +149,11 @@ func (ls *ListenStream) Next() (*api.ListenEvent, error) {
 
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" { // end of event
+			// Record the ID only here. An ID from an event that the connection cut short
+			// would make the server resume past an event this stream never delivered.
+			if id != "" {
+				ls.setLastEventID(id)
+			}
 			if !haveData {
 				eventType, id = "", ""
 				continue

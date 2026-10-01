@@ -94,3 +94,13 @@ type ListenEvent struct {
 	ID   string
 	Data *json.RawMessage
 }
+
+// Event types of the listen API.
+const (
+	ListenEventWelcome      = "welcome"
+	ListenEventWelcomeBack  = "welcomeback"
+	ListenEventMutation     = "mutation"
+	ListenEventReset        = "reset"
+	ListenEventChannelError = "channelError"
+	ListenEventDisconnect   = "disconnect"
+)
