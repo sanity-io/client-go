@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -161,6 +162,70 @@ func TestListen_contextCancellation(t *testing.T) {
 		_, err = stream.Next()
 		assert.Equal(t, context.Canceled, err)
 	})
+}
+
+func TestListen_resume(t *testing.T) {
+	withSuite(t, func(s *Suite) {
+		s.mux.Get("/v1/data/listen/myDataset", func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "true", r.URL.Query().Get("enableResume"))
+			assert.Equal(t, "evt-1", r.Header.Get("Last-Event-ID"))
+			w.Header().Set("Content-Type", "text/event-stream")
+			flusher := w.(http.Flusher)
+			fmt.Fprint(w, "event: welcomeback\nid:evt-1\n\n")
+			fmt.Fprint(w, "event: mutation\nid:evt-2\ndata:{}\n\n")
+			flusher.Flush()
+		})
+		stream, err := s.client.Listen("*").
+			EnableResume(true).
+			LastEventID("evt-1").
+			Do(context.Background())
+		require.NoError(t, err)
+		defer stream.Close()
+
+		event, err := stream.Next()
+		require.NoError(t, err)
+		assert.Equal(t, "mutation", event.Type)
+		assert.Equal(t, "evt-2", event.ID)
+		assert.Equal(t, "evt-2", stream.LastEventID())
+	})
+}
+
+func TestListen_lastEventIDFromSkippedEvent(t *testing.T) {
+	withSuite(t, func(s *Suite) {
+		s.mux.Get("/v1/data/listen/myDataset", func(w http.ResponseWriter, r *http.Request) {
+			assert.Empty(t, r.Header.Get("Last-Event-ID"))
+			w.Header().Set("Content-Type", "text/event-stream")
+			flusher := w.(http.Flusher)
+			fmt.Fprint(w, "event: welcome\nid:evt-1\n\n")
+			flusher.Flush()
+			<-r.Context().Done()
+		})
+		stream, err := s.client.Listen("*").EnableResume(true).Do(context.Background())
+		require.NoError(t, err)
+
+		assert.Empty(t, stream.LastEventID())
+		go func() {
+			// Next blocks on the held-open stream, so close it to unblock the read.
+			_, _ = stream.Next()
+		}()
+		assert.Eventually(t, func() bool { return stream.LastEventID() == "evt-1" },
+			time.Second, 5*time.Millisecond)
+		require.NoError(t, stream.Close())
+	})
+}
+
+func TestListen_noResumeByDefault(t *testing.T) {
+	tr := &recordingTransport{}
+	c, err := sanity.VersionV1.NewClient("myProject", "myDataset",
+		sanity.WithHTTPClient(&http.Client{Transport: tr}))
+	require.NoError(t, err)
+
+	_, err = c.Listen("*").Do(context.Background())
+	require.Error(t, err)
+
+	require.NotNil(t, tr.req)
+	assert.Empty(t, tr.req.URL.Query().Get("enableResume"))
+	assert.Empty(t, tr.req.Header.Get("Last-Event-ID"))
 }
 
 func TestListen_skipsCDN(t *testing.T) {

@@ -45,8 +45,40 @@ func main() {
 	if err := result.Unmarshal(&project); err != nil {
 		log.Fatal(err)
     }
-    
+
 	log.Printf("Project: %+v", project)
+}
+```
+
+### Listening for changes
+
+`Listen` opens a server-sent event stream of mutations that match a GROQ filter. The caller
+owns the reconnect: `Next` returns `io.EOF` after `Close` and when the server ends the stream.
+
+With `EnableResume(true)`, the server puts an ID on every event. Give the last ID to
+`LastEventID` on the next attempt, and the stream continues from that position. Resume is
+best effort. The server sends a `welcomeback` event when it continues, and a `welcome`
+event when it cannot, which means events in the gap are lost.
+
+```go
+stream, err := client.Listen("*[_type == 'project']").
+    EnableResume(true).
+    LastEventID(lastID). // empty on the first attempt
+    Do(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+defer stream.Close()
+
+for {
+    event, err := stream.Next()
+    if err != nil {
+        lastID = stream.LastEventID() // reconnect from here
+        break
+    }
+    if event.Type == api.ListenEventMutation {
+        log.Printf("mutation: %s", *event.Data)
+    }
 }
 ```
 
